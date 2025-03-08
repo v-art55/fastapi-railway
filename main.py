@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 import requests
 import logging
@@ -7,7 +8,16 @@ from time import sleep
 from urllib.parse import unquote
 import os
 
-app = FastAPI()
+app = FastAPI(title="YouTube Audio Streamer")
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +29,7 @@ def get_audio_stream_url(video_url):
         'quiet': True,
         'noplaylist': True,
         'extract_flat': False,
-        "cookies": "cookies.txt",
+        "cookies": "cookies.txt" if os.path.exists("cookies.txt") else None,
         'skip_download': True,
     }
     
@@ -49,6 +59,14 @@ def stream_audio(url):
     
     raise HTTPException(status_code=500, detail="Failed to stream audio")
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "YouTube Audio Streamer API is running"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
 @app.get("/stream")
 async def stream_audio_endpoint(video_url: str):
     video_url = unquote(video_url)
@@ -60,3 +78,9 @@ async def stream_audio_endpoint(video_url: str):
     except Exception as e:
         logger.error(f"Error processing request: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
